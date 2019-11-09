@@ -9,6 +9,53 @@
 <div id="mainContent"></div>
 <script>
     let main = "#mainContent";
+    const margin = {top: 30, right: 20, bottom: 50, left: 50},
+        width = 600 - margin.left - margin.right,
+        height = 300 - margin.top - margin.bottom;
+
+    let xScale = d3.scaleLinear()
+        .range([0, width]);
+
+    let yScale = d3.scaleLinear()
+        .range([height, 0]);
+
+    const startDate = 2007;
+    const endDate = 2018;
+
+    let keyList = ["iot", "cybersecurity", "bigdata", "other"]
+
+    const color = function (topic) {
+        if (topic === "iot"){
+            return "#73bbf4"
+        }
+        else if (topic === "cybersecurity"){
+            return "#8bec95"
+        }
+        else if (topic === "bigdata"){
+            return "#f4bf83"
+        }
+        else {
+            return "#cccccc"
+        }
+    };
+
+    var parseTime = d3.timeParse("%y");
+
+
+    function styleYAxis(axisNodes) {
+        axisNodes.selectAll('.tick text')
+            // .text(d => d.toString())
+            .attr("fill", "#555555");
+    }
+
+    function styleXAxis(axisNodes) {
+        axisNodes.selectAll('.tick text')
+        .text(d => {
+            return d.toString()
+        })
+            .attr("fill", "#555555");
+    }
+
     let svg = d3.select(main)
         .append("div")
         .style("width", (width + margin.left + margin.right) + "px")
@@ -16,7 +63,7 @@
         .append("svg")
         .attr("width", width + margin.left + margin.right)
         .attr("height", height + margin.top + margin.bottom);
-    
+
     // main svg
     let g = svg.append("g")
         .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
@@ -25,48 +72,66 @@
     const stack = d3.stack().keys(keyList)
         .offset(d3.stackOffsetNone);
 
-    const stacks = stack(streamRawData);
-    highestStack = stacks[stacks.length-1].map(d => {
-        return {
-            y: d[1],
-            time: d.data.time
+
+    d3.json("data/stream_data.json", function (err, streamRawData) {
+        if (err) {
+            throw err
+        } else {
+            console.log(streamRawData)
+            const stacks = stack(streamRawData);
+            //The scales
+            xScale.domain([startDate, endDate]);
+            yScale.domain(d3.extent(stacks.flat().flat()));
+
+
+            //The area function used to generate path data for the area.
+            const areaGen = d3.area()
+                .x(d => xScale(d.data.time))
+                .y0(d => yScale(d[0]))
+                .y1(d => yScale(d[1]))
+                .curve(d3.curveMonotoneX);
+
+            // Main stream
+            g.append("g")
+                .attr("id", "streamG")
+                .selectAll(".layer")
+                .data(stacks).enter()
+                .append("path")
+                .attr("class", "layer")
+                .attr("d", areaGen)
+                .attr("fill", (d, i) => {
+                    console.log(d.key)
+                    return color(d.key)
+                });
+
+            //The x axis
+            const xAxisGroup = g.append("g").attr("transform", "translate(0," + height + ")");
+            const xAxis = d3.axisBottom(xScale);
+            let xAxisNodes = xAxisGroup.call(xAxis);
+            styleXAxis(xAxisNodes);
+            // xAxisGroup.append("text").text("year")
+            console.log(xAxisNodes)
+
+
+            //The y Axis
+            const yAxisGroup = g.append('g').attr('id', 'yAxis');
+            const yAxis = d3.axisLeft(yScale);
+            let yAxisNodes = yAxisGroup.call(yAxis);
+            styleYAxis(yAxisNodes);
+
+
+            svg.append("text").text("Number of posts")
+                .attr("transform", "translate(65,120) rotate(-90)")
+                .attr("font-size", "12")
+                .attr("font-family", "sans-serif")
+
+            svg.append("text").text("Year")
+                .attr("transform", "translate("+ (width+20) + "," + (height+20) +")")
+                .attr("font-size", "12")
+                .attr("font-family", "sans-serif")
+
         }
-    });
-    //The scales
-    xScale.domain([startDate, endDate]);
-    yScale.domain(d3.extent(stacks.flat().flat()));
-
-    //The x axis
-    const xAxisGroup = g.append("g").attr("transform", "translate(0," + height + ")");
-    const xAxis = d3.axisBottom(xScale);
-    let xAxisNodes = xAxisGroup.call(xAxis);
-    styleAxis(xAxisNodes);
-
-    //The y Axis
-    const yAxisGroup = g.append('g').attr('id','yAxis');
-    const yAxis = d3.axisLeft(yScale);
-    let yAxisNodes = yAxisGroup.call(yAxis);
-    styleAxis(yAxisNodes);
-
-    //The area function used to generate path data for the area.
-    const areaGen = d3.area()
-        .x(d => xScale(d.data.time))
-        .y0(d => yScale(d[0]))
-        .y1(d => yScale(d[1]))
-        .curve(d3.curveMonotoneX);
-
-    // Main stream
-    g.append("g")
-        .attr("id", "streamG")
-        .selectAll(".layer")
-        .data(stacks).enter()
-        .append("path")
-        .attr("class", "layer")
-        .attr("d", areaGen)
-        .attr("fill", (d, i) => {
-            return taxonomy.find(d => d.id === keyList[i]).color;
-        });
-
+    })
 </script>
 </body>
 </html>
